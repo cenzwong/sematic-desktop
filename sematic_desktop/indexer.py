@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from glob import glob
-import json
 import logging
 import mimetypes
 from pathlib import Path
@@ -15,6 +14,7 @@ except ImportError:  # pragma: no cover - fallback when tqdm is unavailable.
     def tqdm(iterable, **_: Any):  # type: ignore[override]
         return iterable
 
+from .embeddings import EmbeddingGemmaClient, LanceMetadataStore
 from .routing import ConversionRouter, gather_file_signals
 from .summarizer import MarkdownSummarizer
 
@@ -50,6 +50,7 @@ DEFAULT_METADATA_ROOT = ".semantic_index/metadata"
 _MARKITDOWN_INSTANCE: Any | None = None
 _DOCLING_INSTANCE: Any | None = None
 _MARKDOWN_SUMMARIZER_INSTANCE: MarkdownSummarizer | None = None
+_EMBEDDING_CLIENT_INSTANCE: EmbeddingGemmaClient | None = None
 logger = logging.getLogger(__name__)
 
 
@@ -151,6 +152,19 @@ def _get_markdown_summarizer(markdown_summarizer: MarkdownSummarizer | None = No
     return _MARKDOWN_SUMMARIZER_INSTANCE
 
 
+def _get_embedding_client(embedding_client: EmbeddingGemmaClient | None = None) -> EmbeddingGemmaClient | None:
+    if embedding_client is not None:
+        return embedding_client
+    global _EMBEDDING_CLIENT_INSTANCE
+    if _EMBEDDING_CLIENT_INSTANCE is None:
+        try:
+            _EMBEDDING_CLIENT_INSTANCE = EmbeddingGemmaClient()
+        except Exception as exc:  # pragma: no cover - best effort integration.
+            logger.warning("Disabling embeddings: %s", exc)
+            _EMBEDDING_CLIENT_INSTANCE = None
+    return _EMBEDDING_CLIENT_INSTANCE
+
+
 def _convert_to_markdown(
     source_path: Path,
     *,
@@ -246,6 +260,8 @@ def build_markdown_index(
     show_progress: bool = True,
     markdown_summarizer: MarkdownSummarizer | None = None,
     enable_markdown_summaries: bool = True,
+    embedding_client: EmbeddingGemmaClient | None = None,
+    enable_embeddings: bool = True,
 ) -> list[Path]:
     """Convert files beneath ``folder`` into Markdown artifacts.
 
@@ -253,7 +269,7 @@ def build_markdown_index(
         folder: Directory whose contents should be indexed.
         output_root: Root directory where `.semantic_index/markdown/<folder>` lives.
             Defaults to the folder's parent joined with ``DEFAULT_MARKDOWN_ROOT``.
-        metadata_root: Root directory where `.semantic_index/metadata/<folder>` lives.
+        metadata_root: Root directory where `.semantic_index/metadata/<folder>.lance` lives.
             Defaults to the folder's parent joined with ``DEFAULT_METADATA_ROOT``.
         allowed_extensions: Optional filter for `list_files`. Provide an empty iterable
             to include every file when desired.
@@ -263,6 +279,8 @@ def build_markdown_index(
         show_progress: When True, display a progress bar for pending files using tqdm.
         markdown_summarizer: Optional Ollama-backed summarizer override.
         enable_markdown_summaries: When True, persist description + tags using Gemma.
+        embedding_client: Optional embedding helper override (defaults to EmbeddingGemma).
+        enable_embeddings: When True, store embedding vectors alongside metadata.
 
     Returns:
         Sorted list of Markdown file paths written to disk.
@@ -286,23 +304,22 @@ def build_markdown_index(
         if metadata_root is not None
         else (base_path.parent / DEFAULT_METADATA_ROOT)
     )
-    metadata_target_root = metadata_root_path / base_path.name
-    metadata_target_root.mkdir(parents=True, exist_ok=True)
+    metadata_root_path.mkdir(parents=True, exist_ok=True)
+    metadata_store = LanceMetadataStore(metadata_root_path, base_path.name)
 
     files_to_index = list_files(
         base_path,
         allowed_extensions=allowed_extensions if allowed_extensions is not None else [],
     )
     summarizer = _get_markdown_summarizer(markdown_summarizer) if enable_markdown_summaries else None
+    embedding_helper = _get_embedding_client(embedding_client) if enable_embeddings else None
 
-    def _write_metadata_file(
-        metadata_path: Path,
+    def _build_metadata_record(
         *,
         source_file: Path,
         destination: Path,
         converter_name: str,
     ) -> dict[str, Any]:
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
         file_stat = source_file.stat()
         file_extension = source_file.suffix.lower() or None
         mime_type, _ = mimetypes.guess_type(source_file.name)
@@ -317,53 +334,69 @@ def build_markdown_index(
             "file_name": source_file.name,
             "file_extension": file_extension,
             "file_type": file_type,
+            "description": "",
+            "tags": [],
+            "embedding": [],
         }
-        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         return metadata
 
-    def _attach_summary_to_metadata(
-        metadata_path: Path,
+    def _enrich_metadata(
         metadata: dict[str, Any],
         markdown_text: str,
         *,
         summarizer: MarkdownSummarizer | None,
+        embedding_client: EmbeddingGemmaClient | None,
         source_file: Path,
     ) -> None:
-        if summarizer is None:
-            return
-        try:
-            summary = summarizer.summarize(markdown_text)
-        except Exception as exc:  # pragma: no cover - best effort integration.
-            logger.warning("Unable to summarize %s: %s", source_file, exc)
-            return
-        metadata["description"] = summary.description
-        metadata["tags"] = summary.tags
-        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        if summarizer is not None:
+            try:
+                summary = summarizer.summarize(markdown_text)
+            except Exception as exc:  # pragma: no cover - best effort integration.
+                logger.warning("Unable to summarize %s: %s", source_file, exc)
+            else:
+                metadata["description"] = summary.description
+                metadata["tags"] = summary.tags
+        if embedding_client is not None:
+            try:
+                metadata["embedding"] = embedding_client.embed(markdown_text)
+            except Exception as exc:  # pragma: no cover - best effort integration.
+                logger.warning("Unable to embed %s: %s", source_file, exc)
 
-    pending: list[tuple[Path, Path, Path]] = []
+    pending: list[tuple[Path, Path]] = []
     skipped = 0
     for source_file in files_to_index:
         relative_path = source_file.relative_to(base_path)
         destination = (target_root / relative_path).with_name(relative_path.name + ".md")
-        metadata_path = (metadata_target_root / relative_path).with_name(relative_path.name + ".json")
         if destination.exists():
-            if not metadata_path.exists():
-                _write_metadata_file(
-                    metadata_path,
-                    source_file=source_file,
-                    destination=destination,
-                    converter_name="unknown",
-                )
-                logger.info("Backfilled metadata for %s", relative_path)
+            if not metadata_store.has_record(source_file):
+                logger.info("Backfilling Lance metadata for %s", relative_path)
+                try:
+                    markdown_text = destination.read_text(encoding="utf-8")
+                except OSError as exc:  # pragma: no cover - best effort.
+                    logger.warning("Unable to read existing markdown for %s: %s", relative_path, exc)
+                else:
+                    metadata = _build_metadata_record(
+                        source_file=source_file,
+                        destination=destination,
+                        converter_name="unknown",
+                    )
+                    _enrich_metadata(
+                        metadata,
+                        markdown_text,
+                        summarizer=summarizer,
+                        embedding_client=embedding_helper,
+                        source_file=source_file,
+                    )
+                    metadata_store.append(metadata)
             skipped += 1
             logger.info("Skipping %s (already indexed)", relative_path)
             continue
-        pending.append((source_file, destination, metadata_path))
+        pending.append((source_file, destination))
 
     if skipped:
         logger.info("Skipped %d previously indexed files in %s", skipped, base_path)
 
-    iterable: Iterable[tuple[Path, Path, Path]]
+    iterable: Iterable[tuple[Path, Path]]
     if show_progress and pending:
         iterable = tqdm(
             pending,
@@ -375,7 +408,7 @@ def build_markdown_index(
         iterable = pending
 
     written_files: list[Path] = []
-    for source_file, destination, metadata_path in iterable:
+    for source_file, destination in iterable:
         markdown_text, converter_name = _convert_to_markdown(
             source_file,
             markitdown_converter=markitdown_converter,
@@ -385,19 +418,19 @@ def build_markdown_index(
         logger.info("Converted %s using %s", source_file, converter_name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(markdown_text, encoding="utf-8")
-        metadata = _write_metadata_file(
-            metadata_path,
+        metadata = _build_metadata_record(
             source_file=source_file,
             destination=destination,
             converter_name=converter_name,
         )
-        _attach_summary_to_metadata(
-            metadata_path,
+        _enrich_metadata(
             metadata,
             markdown_text,
             summarizer=summarizer,
+            embedding_client=embedding_helper,
             source_file=source_file,
         )
+        metadata_store.append(metadata)
         written_files.append(destination)
 
     written_files.sort()
