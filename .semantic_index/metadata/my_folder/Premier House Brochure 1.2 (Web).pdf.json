@@ -1,0 +1,19 @@
+{
+  "source_path": "/Users/cenz.wong/Project/sematic-desktop/my_folder/Premier House Brochure 1.2 (Web).pdf",
+  "markdown_path": "/Users/cenz.wong/Project/sematic-desktop/.semantic_index/markdown/my_folder/Premier House Brochure 1.2 (Web).pdf.md",
+  "converter": "docling",
+  "size_bytes": 4060010,
+  "indexed_at": "2025-11-07T21:06:21.135787+00:00",
+  "modified_at": "2025-11-07T18:42:35.365294+00:00",
+  "file_name": "Premier House Brochure 1.2 (Web).pdf",
+  "file_extension": ".pdf",
+  "file_type": "application/pdf",
+  "description": "A new apartment complex in Harrow with studios, one, two, and three-bedroom flats available for rent. It boasts convenient access to transport links, shops, and amenities, with features like video intercoms and Beko appliances. The property offers secure bicycle storage and 24-hour maintenance response.",
+  "tags": [
+    "apartment",
+    "harrow",
+    "rental",
+    "convenience",
+    "transport"
+  ]
+}

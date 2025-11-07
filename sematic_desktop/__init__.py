@@ -1,6 +1,20 @@
 """Core package for sematic-desktop utilities."""
 
-from .app import get_greeting, run
-from .indexer import DEFAULT_EXTENSIONS, list_files
+from .indexer import (
+    DEFAULT_EXTENSIONS,
+    DEFAULT_MARKDOWN_ROOT,
+    DEFAULT_METADATA_ROOT,
+    build_markdown_index,
+    list_files,
+)
+from .summarizer import MarkdownSummarizer, MarkdownSummary
 
-__all__ = ["DEFAULT_EXTENSIONS", "get_greeting", "list_files", "run"]
+__all__ = [
+    "DEFAULT_EXTENSIONS",
+    "DEFAULT_MARKDOWN_ROOT",
+    "DEFAULT_METADATA_ROOT",
+    "MarkdownSummarizer",
+    "MarkdownSummary",
+    "build_markdown_index",
+    "list_files",
+]

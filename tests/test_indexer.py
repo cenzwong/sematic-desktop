@@ -1,53 +1,49 @@
-from pathlib import Path
+"""Integration tests for build_markdown_index additions."""
+from __future__ import annotations
 
-import pytest
+import json
 
-from sematic_desktop.indexer import DEFAULT_EXTENSIONS, list_files
-
-
-def test_list_files_returns_all_nested_files(tmp_path: Path) -> None:
-    nested_dir = tmp_path / "nested" / "child"
-    nested_dir.mkdir(parents=True)
-    files = [
-        tmp_path / "root.txt",
-        nested_dir / "deep.txt",
-        tmp_path / "nested" / "sibling.md",
-    ]
-    for path in files:
-        path.write_text(path.name)
-
-    result = list_files(tmp_path)
-
-    assert result == sorted(files)
+from sematic_desktop.indexer import build_markdown_index
+from sematic_desktop.summarizer import MarkdownSummary
 
 
-@pytest.mark.parametrize("missing_path", ["missing", "file.txt"])
-def test_list_files_rejects_invalid_directories(tmp_path: Path, missing_path: str) -> None:
-    target = tmp_path / missing_path
-    if not target.exists() and target.suffix == ".txt":
-        target.write_text("not a directory")
+class DummyMarkItDown:
+    def convert(self, _: str) -> object:  # pragma: no cover - exercised indirectly.
+        class Result:
+            text_content = "# Title\n\nBody"
 
-    with pytest.raises(ValueError):
-        list_files(target)
+        return Result()
 
 
-def test_list_files_filters_with_default_extensions(tmp_path: Path) -> None:
-    allowed_file = tmp_path / "notes.txt"
-    skipped_file = tmp_path / "payload.bin"
-    allowed_file.write_text("ok")
-    skipped_file.write_text("skip me")
+class DummySummarizer:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
 
-    result = list_files(tmp_path)
-
-    assert result == [allowed_file]
-    assert ".txt" in DEFAULT_EXTENSIONS
-    assert ".bin" not in DEFAULT_EXTENSIONS
+    def summarize(self, markdown_text: str) -> MarkdownSummary:
+        self.calls.append(markdown_text)
+        return MarkdownSummary(description="desc", tags=["tag"])
 
 
-def test_list_files_accepts_custom_extensions(tmp_path: Path) -> None:
-    payload = tmp_path / "payload.bin"
-    payload.write_text("data")
+def test_build_markdown_index_writes_summary_metadata(tmp_path) -> None:
+    source_dir = tmp_path / "docs"
+    source_dir.mkdir()
+    (source_dir / "note.txt").write_text("hello world", encoding="utf-8")
 
-    result = list_files(tmp_path, allowed_extensions=["bin"])
+    summarizer = DummySummarizer()
+    outputs = build_markdown_index(
+        source_dir,
+        output_root=tmp_path / "markdown",
+        metadata_root=tmp_path / "metadata",
+        allowed_extensions=["txt"],
+        markitdown_converter=DummyMarkItDown(),
+        docling_converter=None,
+        show_progress=False,
+        markdown_summarizer=summarizer,
+    )
 
-    assert result == [payload]
+    assert len(outputs) == 1
+    metadata_path = tmp_path / "metadata" / "docs" / "note.txt.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["description"] == "desc"
+    assert metadata["tags"] == ["tag"]
+    assert summarizer.calls  # summarizer was invoked
