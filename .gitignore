@@ -10,3 +10,4 @@ wheels/
 .venv
 .semantic_index
 my_folder/
+.DS_Store
