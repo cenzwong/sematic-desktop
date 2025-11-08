@@ -60,12 +60,14 @@ def test_search_engine_supports_all_modes(tmp_path) -> None:
                 "source_path": str(tmp_path / "docs" / "note.txt"),
                 "markdown_path": str(markdown_path),
                 "variant": "document",
+                "variant_label": None,
                 "vector": [1.0, 0.0],
             },
             {
                 "source_path": str(tmp_path / "docs" / "note.txt"),
                 "markdown_path": str(markdown_path),
                 "variant": "tags",
+                "variant_label": "beta",
                 "vector": [0.0, 1.0],
             },
         ],
@@ -92,6 +94,7 @@ def test_search_engine_supports_all_modes(tmp_path) -> None:
 
     tag_hits = engine.search_tags("tag query")
     assert tag_hits and tag_hits[0].variant == "tags"
+    assert tag_hits[0].matched_tag == "beta"
 
     answer_payload = engine.answer_question("What is note?", top_k=1)
     assert "answer: What is note?" == answer_payload["answer"]

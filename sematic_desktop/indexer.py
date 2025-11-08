@@ -367,20 +367,25 @@ def build_markdown_index(
                         "source_path": metadata["source_path"],
                         "markdown_path": metadata["markdown_path"],
                         "variant": "document",
+                        "variant_label": None,
                         "vector": document_embedding,
                     },
                 )
                 if metadata["tags"]:
-                    tag_text = "\n".join(metadata["tags"])
-                    tag_embedding = embedding_client.embed(tag_text)
-                    embeddings.append(
-                        {
-                            "source_path": metadata["source_path"],
-                            "markdown_path": metadata["markdown_path"],
-                            "variant": "tags",
-                            "vector": tag_embedding,
-                        },
-                    )
+                    for tag in metadata["tags"]:
+                        tag_text = tag.strip()
+                        if not tag_text:
+                            continue
+                        tag_embedding = embedding_client.embed(tag_text)
+                        embeddings.append(
+                            {
+                                "source_path": metadata["source_path"],
+                                "markdown_path": metadata["markdown_path"],
+                                "variant": "tags",
+                                "variant_label": tag_text,
+                                "vector": tag_embedding,
+                            },
+                        )
             except Exception as exc:  # pragma: no cover - best effort integration.
                 logger.warning("Unable to embed %s: %s", source_file, exc)
         return embeddings

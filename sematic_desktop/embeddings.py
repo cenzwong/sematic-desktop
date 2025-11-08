@@ -113,6 +113,7 @@ def _embedding_schema() -> pa.Schema:
             pa.field("source_path", pa.string()),
             pa.field("markdown_path", pa.string()),
             pa.field("variant", pa.string()),  # document, tags, etc.
+            pa.field("variant_label", pa.string()),
             pa.field("vector", pa.list_(pa.float32())),
         ]
     )
@@ -131,7 +132,8 @@ class LanceMetadataStore:
 
     def _ensure_table(self):
         if self.table_name in self._db.table_names():
-            return self._db.open_table(self.table_name)
+            table = self._db.open_table(self.table_name)
+            return table
         return self._db.create_table(self.table_name, schema=_metadata_schema())
 
     def _normalize_path(self, source_path: Path | str) -> str:
@@ -189,9 +191,21 @@ class LanceEmbeddingStore:
         self._known_pairs: set[tuple[str, str]] | None = None
 
     def _ensure_table(self):
+        expected_schema = _embedding_schema()
         if self.table_name in self._db.table_names():
-            return self._db.open_table(self.table_name)
-        return self._db.create_table(self.table_name, schema=_embedding_schema())
+            table = self._db.open_table(self.table_name)
+            current_fields = list(table.schema.names)
+            expected_fields = [field.name for field in expected_schema]
+            if current_fields != expected_fields:
+                arrow_rows = table.to_arrow().to_pylist()
+                for row in arrow_rows:
+                    row.setdefault("variant_label", None)
+                self._db.drop_table(self.table_name)
+                table = self._db.create_table(self.table_name, schema=expected_schema)
+                if arrow_rows:
+                    table.add(arrow_rows)
+            return table
+        return self._db.create_table(self.table_name, schema=expected_schema)
 
     def _normalize_path(self, source_path: Path | str) -> str:
         return str(Path(source_path).expanduser().resolve())
