@@ -1953,6 +1953,7 @@ dependencies = [
     { name = "docling" },
     { name = "lancedb" },
     { name = "markitdown" },
+    { name = "numpy" },
     { name = "tqdm" },
 ]
 
@@ -1967,6 +1968,7 @@ requires-dist = [
     { name = "docling", specifier = ">=2.61.1" },
     { name = "lancedb", specifier = ">=0.7.8" },
     { name = "markitdown", specifier = ">=0.1.3" },
+    { name = "numpy", specifier = ">=1.26.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
 ]
 

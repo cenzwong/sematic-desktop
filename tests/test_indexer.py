@@ -55,13 +55,21 @@ def test_build_markdown_index_writes_lance_metadata(tmp_path) -> None:
     )
 
     assert len(outputs) == 1
-    db = lancedb.connect(str(tmp_path / "metadata"))
-    table = db.open_table("docs")
+    db = lancedb.connect(str(tmp_path / "metadata" / "docs"))
+    table = db.open_table("properties")
     rows = table.to_arrow().to_pylist()
     assert len(rows) == 1
     row = rows[0]
     assert row["description"] == "desc"
     assert row["tags"] == ["tag"]
-    assert row["embedding"] == pytest.approx([0.1, 0.2, 0.3])
     assert summarizer.calls
     assert embedding_client.calls
+
+    embedding_db = lancedb.connect(str(tmp_path / "metadata" / "docs"))
+    embedding_table = embedding_db.open_table("embeddings")
+    embedding_rows = embedding_table.to_arrow().to_pylist()
+    assert len(embedding_rows) == 2  # document + tags variants
+    document_row = next(row for row in embedding_rows if row["variant"] == "document")
+    tags_row = next(row for row in embedding_rows if row["variant"] == "tags")
+    assert document_row["vector"] == pytest.approx([0.1, 0.2, 0.3])
+    assert tags_row["vector"] == pytest.approx([0.1, 0.2, 0.3])

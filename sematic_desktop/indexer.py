@@ -14,7 +14,7 @@ except ImportError:  # pragma: no cover - fallback when tqdm is unavailable.
     def tqdm(iterable, **_: Any):  # type: ignore[override]
         return iterable
 
-from .embeddings import EmbeddingGemmaClient, LanceMetadataStore
+from .embeddings import EmbeddingGemmaClient, LanceEmbeddingStore, LanceMetadataStore
 from .routing import ConversionRouter, gather_file_signals
 from .summarizer import MarkdownSummarizer
 
@@ -269,8 +269,8 @@ def build_markdown_index(
         folder: Directory whose contents should be indexed.
         output_root: Root directory where `.semantic_index/markdown/<folder>` lives.
             Defaults to the folder's parent joined with ``DEFAULT_MARKDOWN_ROOT``.
-        metadata_root: Root directory where `.semantic_index/metadata/<folder>.lance` lives.
-            Defaults to the folder's parent joined with ``DEFAULT_METADATA_ROOT``.
+        metadata_root: Root directory where `.semantic_index/metadata/<folder>` lives.
+            Each folder contains ``properties.lance`` and ``embeddings.lance`` tables.
         allowed_extensions: Optional filter for `list_files`. Provide an empty iterable
             to include every file when desired.
         markitdown_converter: Optional pre-built MarkItDown instance (used for testing).
@@ -305,7 +305,10 @@ def build_markdown_index(
         else (base_path.parent / DEFAULT_METADATA_ROOT)
     )
     metadata_root_path.mkdir(parents=True, exist_ok=True)
-    metadata_store = LanceMetadataStore(metadata_root_path, base_path.name)
+    metadata_folder = metadata_root_path / base_path.name
+    metadata_folder.mkdir(parents=True, exist_ok=True)
+    metadata_store = LanceMetadataStore(metadata_folder, "properties")
+    embedding_store = LanceEmbeddingStore(metadata_folder, "embeddings")
 
     files_to_index = list_files(
         base_path,
@@ -336,7 +339,6 @@ def build_markdown_index(
             "file_type": file_type,
             "description": "",
             "tags": [],
-            "embedding": [],
         }
         return metadata
 
@@ -347,7 +349,8 @@ def build_markdown_index(
         summarizer: MarkdownSummarizer | None,
         embedding_client: EmbeddingGemmaClient | None,
         source_file: Path,
-    ) -> None:
+    ) -> list[dict[str, Any]]:
+        embeddings: list[dict[str, Any]] = []
         if summarizer is not None:
             try:
                 summary = summarizer.summarize(markdown_text)
@@ -358,9 +361,29 @@ def build_markdown_index(
                 metadata["tags"] = summary.tags
         if embedding_client is not None:
             try:
-                metadata["embedding"] = embedding_client.embed(markdown_text)
+                document_embedding = embedding_client.embed(markdown_text)
+                embeddings.append(
+                    {
+                        "source_path": metadata["source_path"],
+                        "markdown_path": metadata["markdown_path"],
+                        "variant": "document",
+                        "vector": document_embedding,
+                    },
+                )
+                if metadata["tags"]:
+                    tag_text = "\n".join(metadata["tags"])
+                    tag_embedding = embedding_client.embed(tag_text)
+                    embeddings.append(
+                        {
+                            "source_path": metadata["source_path"],
+                            "markdown_path": metadata["markdown_path"],
+                            "variant": "tags",
+                            "vector": tag_embedding,
+                        },
+                    )
             except Exception as exc:  # pragma: no cover - best effort integration.
                 logger.warning("Unable to embed %s: %s", source_file, exc)
+        return embeddings
 
     pending: list[tuple[Path, Path]] = []
     skipped = 0
@@ -368,8 +391,12 @@ def build_markdown_index(
         relative_path = source_file.relative_to(base_path)
         destination = (target_root / relative_path).with_name(relative_path.name + ".md")
         if destination.exists():
-            if not metadata_store.has_record(source_file):
-                logger.info("Backfilling Lance metadata for %s", relative_path)
+            metadata_exists = metadata_store.has_record(source_file)
+            doc_embedding_exists = (
+                embedding_helper is None or embedding_store.has_variant(source_file, "document")
+            )
+            if not metadata_exists or not doc_embedding_exists:
+                logger.info("Backfilling Lance artifacts for %s", relative_path)
                 try:
                     markdown_text = destination.read_text(encoding="utf-8")
                 except OSError as exc:  # pragma: no cover - best effort.
@@ -380,14 +407,16 @@ def build_markdown_index(
                         destination=destination,
                         converter_name="unknown",
                     )
-                    _enrich_metadata(
+                    embeddings = _enrich_metadata(
                         metadata,
                         markdown_text,
                         summarizer=summarizer,
                         embedding_client=embedding_helper,
                         source_file=source_file,
                     )
-                    metadata_store.append(metadata)
+                    metadata_store.upsert(metadata)
+                    if embeddings:
+                        embedding_store.upsert_many(embeddings)
             skipped += 1
             logger.info("Skipping %s (already indexed)", relative_path)
             continue
@@ -423,14 +452,16 @@ def build_markdown_index(
             destination=destination,
             converter_name=converter_name,
         )
-        _enrich_metadata(
+        embeddings = _enrich_metadata(
             metadata,
             markdown_text,
             summarizer=summarizer,
             embedding_client=embedding_helper,
             source_file=source_file,
         )
-        metadata_store.append(metadata)
+        metadata_store.upsert(metadata)
+        if embeddings:
+            embedding_store.upsert_many(embeddings)
         written_files.append(destination)
 
     written_files.sort()
@@ -442,5 +473,6 @@ __all__ = [
     "DEFAULT_EXTENSIONS",
     "DEFAULT_MARKDOWN_ROOT",
     "DEFAULT_METADATA_ROOT",
+    "DEFAULT_EMBEDDING_ROOT",
     "build_markdown_index",
 ]

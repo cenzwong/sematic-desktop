@@ -6,6 +6,12 @@ Deliver a desktop utility that walks any folder tree, indexes every file regardl
 ## Project Structure & Module Organization
 The repo is intentionally small: `main.py` hosts the CLI entry point, `pyproject.toml` defines project metadata, and `uv.lock` locks resolved dependencies. Create the package directory `sematic_desktop/` before adding modules so imports stay explicit. Place reusable assets such as sample data under `assets/` and keep documentation (including this file) at the top level. Mirror the runtime layout in tests (e.g., `tests/test_main.py`) to make ownership obvious.
 
+- The indexing pipeline now standardizes three artifact types inside `.semantic_index/`:
+  - Markdown intermediates (`.semantic_index/markdown/<folder>`).
+  - Metadata lance datasets (`.semantic_index/metadata/<folder>/properties.lance`).
+  - Embedding lance datasets (`.semantic_index/metadata/<folder>/embeddings.lance`).
+- Keep ingest (indexer), enrichment (summaries + embeddings), storage (Lance), and query (search facade) components loosely coupled so future agents can replace any layer independently.
+
 ## Build, Test, and Development Commands
 - `uv sync` — install or update dependencies declared in `pyproject.toml` inside the managed virtual environment.
 - `uv run python main.py` — run the desktop entry point locally; add feature flags via CLI args during development.
@@ -15,8 +21,15 @@ The repo is intentionally small: `main.py` hosts the CLI entry point, `pyproject
 ## Coding Style & Naming Conventions
 Target Python 3.13 and idiomatic PEP 8 style: 4-space indentation, `snake_case` for functions and variables, `CapWords` for classes. Keep modules single-purpose and move helper logic from `main.py` into `sematic_desktop/<feature>.py`. Type annotate public functions, favor f-strings over concatenation, and include concise docstrings for side effects. Let Ruff (once added as a dev dependency) enforce unused-import and complexity limits.
 
+- `sematic_desktop/indexer.py` owns filesystem traversal plus markdown/metadata/embedding writes.
+- `sematic_desktop/embeddings.py` encapsulates the Ollama HTTP client along with Lance table helpers—do not leak raw Lance calls elsewhere.
+- `sematic_desktop/search.py` exposes the semantic-search interface (context, tag, and question answering). Any UI or CLI should call this module rather than rebuilding embedding queries manually.
+
 ## Testing Guidelines
 Author Pytest cases under `tests/` with filenames mirroring the source (`tests/test_<module>.py`). Each test function should describe behavior, e.g., `test_main_prints_greeting`. When logic touches I/O, isolate it behind injectable helpers so tests can substitute fakes. Aim for ≥85% coverage on new code, use deterministic fixtures, and document any slow paths with markers such as `@pytest.mark.slow`.
+
+- Tests that cover Lance-backed behavior should use temporary directories and the helper stores directly to avoid polluting the working tree.
+- When adding new search behaviors, pair them with high-level tests under `tests/test_search.py` to ensure embeddings + metadata stay in sync.
 
 ## Commit & Pull Request Guidelines
 History so far follows Conventional Commits (e.g., `feat: add tracing`); continue that format for easy changelog generation. Keep commits focused on a single concern and include brief bodies when context is not obvious. Pull requests must state motivation, link issues, and list verification steps (commands + status). Attach screenshots or recordings when behavior changes, request review before merging, and wait for CI to pass.
