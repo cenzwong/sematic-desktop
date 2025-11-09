@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from sematic_desktop.data.stores import LanceEmbeddingStore, LanceMetadataStore
 from sematic_desktop.services.search import SemanticSearchEngine
 
@@ -14,9 +12,7 @@ class StubEmbeddingClient:
     def __init__(self, mapping: dict[str, list[float]]) -> None:
         self.mapping = mapping
 
-    def embed(
-        self, text: str
-    ) -> list[float]:  # pragma: no cover - exercised via engine
+    def embed(self, text: str) -> list[float]:  # pragma: no cover - exercised via engine
         key = text.strip().lower()
         return self.mapping.get(key, self.mapping["default"])
 

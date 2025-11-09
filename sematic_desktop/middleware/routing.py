@@ -165,10 +165,7 @@ class ConversionRouter:
         diversity_score = min(1.0, unique_tokens / max(len(text.split()), 1))
 
         quality = (
-            0.55 * length_score
-            + 0.25 * alpha_ratio
-            + 0.10 * diversity_score
-            + structural_bonus
+            0.55 * length_score + 0.25 * alpha_ratio + 0.10 * diversity_score + structural_bonus
         )
         return float(max(0.0, min(1.0, quality)))
 

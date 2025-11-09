@@ -10,9 +10,7 @@ class StubOllamaClient:
         self.response = response
         self.requests: list[tuple[str, str]] = []
 
-    def generate(
-        self, model: str, prompt: str
-    ) -> str:  # pragma: no cover - exercised indirectly
+    def generate(self, model: str, prompt: str) -> str:  # pragma: no cover - exercised indirectly
         self.requests.append((model, prompt))
         return self.response
 

@@ -95,9 +95,7 @@ def print_tag_search(engine: SemanticSearchEngine, *, query: str, top_k: int) ->
         print(f"- {hit.source_path} | tag={tag} | score={hit.score:.3f}")
 
 
-def print_rag_answer(
-    engine: SemanticSearchEngine, *, question: str, top_k: int
-) -> None:
+def print_rag_answer(engine: SemanticSearchEngine, *, question: str, top_k: int) -> None:
     question = question.strip()
     if not question:
         print("RAG example skipped: empty question.")

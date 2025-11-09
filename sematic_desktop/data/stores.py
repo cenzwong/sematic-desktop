@@ -132,9 +132,7 @@ class LanceEmbeddingStore:
         if tag_records:
             self._known_tag_pairs = None
 
-    def search(
-        self, vector: list[float], *, variant: str, limit: int = 5
-    ) -> list[dict[str, Any]]:
+    def search(self, vector: list[float], *, variant: str, limit: int = 5) -> list[dict[str, Any]]:
         if variant == "document":
             rows = search_vectors(self.doc_table, vector, limit=limit)
             for row in rows:

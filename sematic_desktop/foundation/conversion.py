@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 try:  # pragma: no cover - exercised via dependency injection in tests.
     from markitdown import MarkItDown as _MarkItDownClass
@@ -62,22 +62,16 @@ def extract_markdown_from_docling(result: Any) -> str | None:
     return None
 
 
-def convert_with_markitdown(
-    source_path: Path, *, override: Any | None = None
-) -> str | None:
+def convert_with_markitdown(source_path: Path, *, override: Any | None = None) -> str | None:
     """Invoke MarkItDown for ``source_path`` and return markdown text."""
-    converter = override or (
-        _MarkItDownClass() if _MarkItDownClass is not None else None
-    )
+    converter = override or (_MarkItDownClass() if _MarkItDownClass is not None else None)
     if converter is None:
         return None
     result = converter.convert(str(source_path))
     return extract_markdown_from_markitdown(result)
 
 
-def convert_with_docling(
-    source_path: Path, *, override: Any | None = None
-) -> str | None:
+def convert_with_docling(source_path: Path, *, override: Any | None = None) -> str | None:
     """Invoke Docling for ``source_path`` and return markdown text."""
     converter = override or (
         _DoclingConverterClass() if _DoclingConverterClass is not None else None

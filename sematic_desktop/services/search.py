@@ -138,11 +138,7 @@ class SemanticSearchEngine:
             distance = float(row.get("_distance", 1.0))
             similarity = max(-1.0, min(1.0, 1.0 - distance))
             if boost_exact_tags:
-                tags = [
-                    tag.lower()
-                    for tag in metadata.get("tags", [])
-                    if isinstance(tag, str)
-                ]
+                tags = [tag.lower() for tag in metadata.get("tags", []) if isinstance(tag, str)]
                 if normalized_query in tags:
                     similarity = 1.0
             hit = SearchHit(
@@ -157,9 +153,7 @@ class SemanticSearchEngine:
             existing = hits_by_source.get(hit.source_path)
             if existing is None or hit.score > existing.score:
                 hits_by_source[hit.source_path] = hit
-        hits = sorted(
-            hits_by_source.values(), key=lambda item: item.score, reverse=True
-        )
+        hits = sorted(hits_by_source.values(), key=lambda item: item.score, reverse=True)
         return hits[:top_k]
 
     @staticmethod
