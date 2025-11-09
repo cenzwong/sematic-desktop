@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from sematic_desktop.embeddings import LanceEmbeddingStore, LanceMetadataStore
-from sematic_desktop.search import SemanticSearchEngine
+from sematic_desktop.data.stores import LanceEmbeddingStore, LanceMetadataStore
+from sematic_desktop.services.search import SemanticSearchEngine
 
 
 class StubEmbeddingClient:
@@ -36,7 +36,7 @@ def _write_markdown(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_search_engine_supports_all_modes(tmp_path) -> None:
     metadata_store = LanceMetadataStore(tmp_path / "metadata", "docs")
-    embedding_store = LanceEmbeddingStore(tmp_path / "embeddings", "docs")
+    embedding_store = LanceEmbeddingStore(tmp_path / "embeddings", doc_table_name="emb_doc", tag_table_name="emb_tags")
     markdown_path = _write_markdown(tmp_path, "note.md", "Important facts live here.")
 
     metadata_store.upsert(

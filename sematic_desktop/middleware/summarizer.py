@@ -7,9 +7,11 @@ import logging
 import re
 from typing import Any, Sequence
 
-from .ollama_client import OllamaClient
+from .ollama import OllamaClient
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["MarkdownSummary", "MarkdownSummarizer"]
 
 
 @dataclass(slots=True)
@@ -100,5 +102,3 @@ class MarkdownSummarizer:
                 normalized.append(cleaned)
         return normalized
 
-
-__all__ = ["MarkdownSummary", "MarkdownSummarizer"]

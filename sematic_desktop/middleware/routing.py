@@ -12,7 +12,8 @@ try:  # pragma: no cover - optional dependency at runtime.
 except ImportError:  # pragma: no cover - fallback to mimetypes.
     _magic = None
 
-# File types that typically benefit from Docling's structural parser.
+__all__ = ["ConversionRouter", "FileSignals", "gather_file_signals"]
+
 _DOCLING_FORWARD_SUFFIXES: set[str] = {
     ".pdf",
     ".ppt",
@@ -28,7 +29,6 @@ _DOCLING_FORWARD_SUFFIXES: set[str] = {
     ".png",
 }
 
-# Lightweight text-first formats where MarkItDown usually shines.
 _MARKITDOWN_FIRST_SUFFIXES: set[str] = {
     ".txt",
     ".md",
@@ -154,7 +154,6 @@ class ConversionRouter:
         expected_chars = max(20, int(signals.size_bytes * self.expected_char_ratio))
         length_score = min(1.0, char_count / max(expected_chars, 1))
 
-        # Reward presence of markdown headings and tables which often indicate rich output.
         structural_bonus = 0.0
         if re.search(r"^#{1,6}\s", text, flags=re.MULTILINE):
             structural_bonus += 0.1
@@ -207,9 +206,6 @@ class ConversionRouter:
 
         suffix_stats = self._historical_stats.setdefault(signals.suffix, {})
         observed = 1.0 if success and error is None else 0.0
-        # Exponential moving average to keep the history bounded.
         previous = suffix_stats.get(converter_name, 0.5)
         suffix_stats[converter_name] = round((previous * 0.7) + (observed * 0.3), 3)
 
-
-__all__ = ["ConversionRouter", "FileSignals", "gather_file_signals"]

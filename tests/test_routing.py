@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sematic_desktop.routing import ConversionRouter, gather_file_signals
+from sematic_desktop.middleware.routing import ConversionRouter, gather_file_signals
 
 
 def test_router_prefers_docling_for_pdf(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from sematic_desktop.embeddings import EmbeddingGemmaClient
+from sematic_desktop.middleware.embeddings import EmbeddingGemmaClient
 
 
 def test_embedding_client_parses_vector_from_response() -> None:

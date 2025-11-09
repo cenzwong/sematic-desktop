@@ -1,12 +1,15 @@
-"""Search + Q&A helpers backed by Lance metadata and embeddings."""
+"""Business logic for semantic search workflows."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from .embeddings import EmbeddingGemmaClient, LanceEmbeddingStore, LanceMetadataStore
-from .ollama_client import OllamaClient
+from sematic_desktop.data import LanceEmbeddingStore, LanceMetadataStore
+from sematic_desktop.middleware import EmbeddingGemmaClient
+from sematic_desktop.middleware.ollama import OllamaClient
+
+__all__ = ["ContextAnswerer", "SearchHit", "SemanticSearchEngine"]
 
 
 @dataclass(slots=True)
@@ -17,7 +20,7 @@ class SearchHit:
     markdown_path: str
     description: str
     tags: list[str]
-    score: float  # cosine similarity (1.0 == identical, 0.0 == orthogonal)
+    score: float
     variant: str
     matched_tag: str | None = None
 
@@ -161,5 +164,3 @@ class SemanticSearchEngine:
             return ""
         return text[:max_chars]
 
-
-__all__ = ["ContextAnswerer", "SearchHit", "SemanticSearchEngine"]

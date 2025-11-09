@@ -1,7 +1,7 @@
 """Unit tests for the MarkdownSummarizer integration."""
 from __future__ import annotations
 
-from sematic_desktop.summarizer import MarkdownSummarizer
+from sematic_desktop.middleware.summarizer import MarkdownSummarizer
 
 
 class StubOllamaClient:
