@@ -51,4 +51,3 @@ __all__ = [
     "upsert_metadata_row",
     "upsert_vectors",
 ]
-

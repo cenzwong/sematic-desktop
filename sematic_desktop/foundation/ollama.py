@@ -1,4 +1,5 @@
 """Low-level helper for invoking the Ollama CLI."""
+
 from __future__ import annotations
 
 import subprocess
@@ -33,6 +34,7 @@ def run_ollama_prompt(
     )
     if process.returncode != 0:
         stderr = process.stderr.decode("utf-8", errors="ignore").strip()
-        raise RuntimeError(f"Ollama exited with status {process.returncode}: {stderr or 'no stderr'}")
+        raise RuntimeError(
+            f"Ollama exited with status {process.returncode}: {stderr or 'no stderr'}"
+        )
     return process.stdout.decode("utf-8", errors="ignore").strip()
-

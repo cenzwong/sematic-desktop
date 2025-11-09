@@ -1,10 +1,11 @@
 """Summarization helpers that lean on Ollama-powered Gemma models."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Sequence
 
 from .ollama import OllamaClient
@@ -44,7 +45,9 @@ class MarkdownSummarizer:
         prompt = self._build_prompt(text)
         response = self.client.generate(self.model, prompt)
         payload = self._parse_response(response)
-        description = (payload.get("description") or payload.get("summary") or "").strip()
+        description = (
+            payload.get("description") or payload.get("summary") or ""
+        ).strip()
         if not description:
             raise ValueError("Ollama response did not include a description.")
         tags = self._normalize_tags(payload.get("tags", []))
@@ -101,4 +104,3 @@ class MarkdownSummarizer:
             if cleaned and cleaned not in normalized:
                 normalized.append(cleaned)
         return normalized
-

@@ -1,4 +1,5 @@
 """Embedding helpers backed by Ollama's embeddinggemma model."""
+
 from __future__ import annotations
 
 from typing import Callable

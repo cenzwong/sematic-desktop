@@ -1,4 +1,5 @@
 """Tests for the semantic search workflows."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,7 +14,9 @@ class StubEmbeddingClient:
     def __init__(self, mapping: dict[str, list[float]]) -> None:
         self.mapping = mapping
 
-    def embed(self, text: str) -> list[float]:  # pragma: no cover - exercised via engine
+    def embed(
+        self, text: str
+    ) -> list[float]:  # pragma: no cover - exercised via engine
         key = text.strip().lower()
         return self.mapping.get(key, self.mapping["default"])
 
@@ -36,7 +39,9 @@ def _write_markdown(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_search_engine_supports_all_modes(tmp_path) -> None:
     metadata_store = LanceMetadataStore(tmp_path / "metadata", "docs")
-    embedding_store = LanceEmbeddingStore(tmp_path / "embeddings", doc_table_name="emb_doc", tag_table_name="emb_tags")
+    embedding_store = LanceEmbeddingStore(
+        tmp_path / "embeddings", doc_table_name="emb_doc", tag_table_name="emb_tags"
+    )
     markdown_path = _write_markdown(tmp_path, "note.md", "Important facts live here.")
 
     metadata_store.upsert(

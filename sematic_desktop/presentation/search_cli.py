@@ -1,4 +1,5 @@
 """Helpers for the CLI that explores Lance-powered search results."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -94,7 +95,9 @@ def print_tag_search(engine: SemanticSearchEngine, *, query: str, top_k: int) ->
         print(f"- {hit.source_path} | tag={tag} | score={hit.score:.3f}")
 
 
-def print_rag_answer(engine: SemanticSearchEngine, *, question: str, top_k: int) -> None:
+def print_rag_answer(
+    engine: SemanticSearchEngine, *, question: str, top_k: int
+) -> None:
     question = question.strip()
     if not question:
         print("RAG example skipped: empty question.")
@@ -113,5 +116,7 @@ def print_rag_answer(engine: SemanticSearchEngine, *, question: str, top_k: int)
 
 def build_search_engine(metadata_folder: Path) -> SemanticSearchEngine:
     metadata_store = LanceMetadataStore(metadata_folder, "properties")
-    embedding_store = LanceEmbeddingStore(metadata_folder, doc_table_name="emb_doc", tag_table_name="emb_tags")
+    embedding_store = LanceEmbeddingStore(
+        metadata_folder, doc_table_name="emb_doc", tag_table_name="emb_tags"
+    )
     return SemanticSearchEngine(metadata_store, embedding_store)

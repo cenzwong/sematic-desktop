@@ -1,4 +1,5 @@
 """CLI entry point for the sematic-desktop project."""
+
 from pathlib import Path
 
 from sematic_desktop.presentation.index_cli import print_index_results, run_indexing_cli

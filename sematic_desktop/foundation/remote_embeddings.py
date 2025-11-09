@@ -1,4 +1,5 @@
 """HTTP helper for requesting embedding vectors from Ollama."""
+
 from __future__ import annotations
 
 import json
@@ -60,4 +61,3 @@ def _extract_embedding(payload: dict[str, Any]) -> list[float] | None:
             if isinstance(vector, list):
                 return vector  # type: ignore[return-value]
     return None
-

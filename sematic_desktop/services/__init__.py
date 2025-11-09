@@ -21,4 +21,3 @@ __all__ = [
     "build_markdown_index",
     "list_files",
 ]
-

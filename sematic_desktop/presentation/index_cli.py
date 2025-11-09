@@ -1,4 +1,5 @@
 """CLI helpers for kicking off the indexing pipeline."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,4 +24,3 @@ def print_index_results(paths: Iterable[Path]) -> None:
     print("Generated markdown artifacts:")
     for path in paths:
         print(path)
-

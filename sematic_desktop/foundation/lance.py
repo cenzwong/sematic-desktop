@@ -1,4 +1,5 @@
 """Low-level helpers for connecting to Lance tables."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -131,7 +132,9 @@ def delete_doc_vector(table: LanceDocTable, source_path: Path | str) -> None:
     table.delete(where=f"source_path = '{normalized}'")
 
 
-def delete_tag_vector(table: LanceTagTable, source_path: Path | str, tag_text: str) -> None:
+def delete_tag_vector(
+    table: LanceTagTable, source_path: Path | str, tag_text: str
+) -> None:
     """Remove the tag vector for ``source_path`` + ``tag_text``."""
 
     normalized = str(Path(source_path).expanduser().resolve()).replace("'", "''")
@@ -139,7 +142,9 @@ def delete_tag_vector(table: LanceTagTable, source_path: Path | str, tag_text: s
     table.delete(where=f"source_path = '{normalized}' AND tag_text = '{tag}'")
 
 
-def fetch_metadata_rows(table: LanceMetadataTable, paths: list[str]) -> dict[str, dict[str, Any]]:
+def fetch_metadata_rows(
+    table: LanceMetadataTable, paths: list[str]
+) -> dict[str, dict[str, Any]]:
     """Return metadata rows keyed by ``source_path``."""
 
     if not paths:
@@ -174,7 +179,9 @@ def list_tag_pairs(table: LanceTagTable) -> set[tuple[str, str]]:
     }
 
 
-def search_vectors(table, vector: list[float], *, limit: int = 5) -> list[dict[str, Any]]:
+def search_vectors(
+    table, vector: list[float], *, limit: int = 5
+) -> list[dict[str, Any]]:
     """Return rows sorted by cosine distance relative to ``vector``."""
 
     if not vector:

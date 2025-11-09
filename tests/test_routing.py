@@ -22,7 +22,9 @@ def test_router_quality_scoring_increases_with_richer_markdown(tmp_path: Path) -
     signals = gather_file_signals(doc)
 
     poor = router.score_markdown("brief text", signals)
-    rich = router.score_markdown("## Heading\n" + ("content row | value\n" * 200), signals)
+    rich = router.score_markdown(
+        "## Heading\n" + ("content row | value\n" * 200), signals
+    )
 
     assert poor < rich
     assert router.is_quality_acceptable(rich, signals)

@@ -1,11 +1,12 @@
 """Business logic for the Markdown indexing pipeline."""
+
 from __future__ import annotations
 
+import logging
+import mimetypes
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from glob import glob
-import logging
-import mimetypes
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Protocol, Sequence
 
@@ -25,8 +26,10 @@ from sematic_desktop.middleware import (
 try:  # pragma: no cover - tqdm is optional during tests.
     from tqdm import tqdm
 except ImportError:  # pragma: no cover - fallback when tqdm is unavailable.
+
     def tqdm(iterable, **_: Any):  # type: ignore[override]
         return iterable
+
 
 try:  # pragma: no cover - exercised via dependency injection in tests.
     from markitdown import MarkItDown as _MarkItDownClass
@@ -75,10 +78,14 @@ __all__ = [
 def _normalized_extensions(extensions: Sequence[str] | None) -> set[str]:
     if not extensions:
         return set()
-    return {ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in extensions}
+    return {
+        ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in extensions
+    }
 
 
-def list_files(folder: Path | str, *, allowed_extensions: Iterable[str] | None = None) -> list[Path]:
+def list_files(
+    folder: Path | str, *, allowed_extensions: Iterable[str] | None = None
+) -> list[Path]:
     """Return indexed files contained within ``folder``."""
     base_path = Path(folder).expanduser().resolve()
     if not base_path.exists():
@@ -148,8 +155,7 @@ class IndexingContext:
 class PipelineStage(Protocol):
     """Minimal interface implemented by each indexing stage."""
 
-    def run(self, items: Iterable[Any], context: IndexingContext) -> Iterable[Any]:
-        ...
+    def run(self, items: Iterable[Any], context: IndexingContext) -> Iterable[Any]: ...
 
 
 class IndexingPipeline:
@@ -168,7 +174,9 @@ class IndexingPipeline:
 class ConversionStage:
     """Turn ``IndexingTask`` instances into ``ConvertedDocument`` objects."""
 
-    def run(self, items: Iterable[IndexingTask], context: IndexingContext) -> Iterable[ConvertedDocument]:
+    def run(
+        self, items: Iterable[IndexingTask], context: IndexingContext
+    ) -> Iterable[ConvertedDocument]:
         for task in items:
             markdown_text, converter_name = convert_to_markdown(
                 task.source_path,
@@ -176,13 +184,17 @@ class ConversionStage:
                 markitdown_converter=context.markitdown_converter,
                 docling_converter=context.docling_converter,
             )
-            yield ConvertedDocument(task=task, markdown_text=markdown_text, converter_name=converter_name)
+            yield ConvertedDocument(
+                task=task, markdown_text=markdown_text, converter_name=converter_name
+            )
 
 
 class EnrichmentStage:
     """Attach metadata + embeddings to converted documents."""
 
-    def run(self, items: Iterable[ConvertedDocument], context: IndexingContext) -> Iterable[EnrichedDocument]:
+    def run(
+        self, items: Iterable[ConvertedDocument], context: IndexingContext
+    ) -> Iterable[EnrichedDocument]:
         for converted in items:
             metadata = build_metadata_record(
                 source_file=converted.task.source_path,
@@ -196,7 +208,9 @@ class EnrichmentStage:
                 embedding_client=context.embedding_client,
                 source_file=converted.task.source_path,
             )
-            yield EnrichedDocument(converted=converted, metadata=metadata, embeddings=embeddings)
+            yield EnrichedDocument(
+                converted=converted, metadata=metadata, embeddings=embeddings
+            )
 
 
 class MetadataPersistenceService:
@@ -231,11 +245,15 @@ class PersistenceStage:
         self.metadata_service = metadata_service
         self.embedding_service = embedding_service
 
-    def run(self, items: Iterable[EnrichedDocument], _: IndexingContext) -> Iterable[Path]:
+    def run(
+        self, items: Iterable[EnrichedDocument], _: IndexingContext
+    ) -> Iterable[Path]:
         for document in items:
             task = document.converted.task
             task.destination_path.parent.mkdir(parents=True, exist_ok=True)
-            task.destination_path.write_text(document.converted.markdown_text, encoding="utf-8")
+            task.destination_path.write_text(
+                document.converted.markdown_text, encoding="utf-8"
+            )
             self.metadata_service.write(document.metadata)
             self.embedding_service.write_many(document.embeddings)
             yield task.destination_path
@@ -254,7 +272,9 @@ class MarkdownIndexService:
         embedding_client_factory: Callable[[], EmbeddingGemmaClient] | None = None,
     ) -> None:
         self.metadata_store_factory = metadata_store_factory or _default_metadata_store
-        self.embedding_store_factory = embedding_store_factory or _default_embedding_store
+        self.embedding_store_factory = (
+            embedding_store_factory or _default_embedding_store
+        )
         self.router = router or ConversionRouter()
         self._summarizer_factory = summarizer_factory
         self._embedding_factory = embedding_client_factory
@@ -308,12 +328,16 @@ class MarkdownIndexService:
 
         files_to_index = list_files(
             base_path,
-            allowed_extensions=allowed_extensions if allowed_extensions is not None else [],
+            allowed_extensions=(
+                allowed_extensions if allowed_extensions is not None else []
+            ),
         )
         summarizer = (
             markdown_summarizer
             if markdown_summarizer is not None
-            else (self._get_markdown_summarizer() if enable_markdown_summaries else None)
+            else (
+                self._get_markdown_summarizer() if enable_markdown_summaries else None
+            )
         )
         embedding_helper = (
             embedding_client
@@ -329,7 +353,8 @@ class MarkdownIndexService:
             summarizer=summarizer,
             embedding_client=embedding_helper,
             router=router,
-            markitdown_converter=markitdown_converter or self._get_markitdown_converter(),
+            markitdown_converter=markitdown_converter
+            or self._get_markitdown_converter(),
             docling_converter=docling_converter or self._get_docling_converter(),
         )
 
@@ -348,7 +373,9 @@ class MarkdownIndexService:
 
         iterable: Iterable[IndexingTask]
         if show_progress:
-            iterable = tqdm(tasks, desc=f"Indexing {base_path.name}", unit="file", leave=False)
+            iterable = tqdm(
+                tasks, desc=f"Indexing {base_path.name}", unit="file", leave=False
+            )
         else:
             iterable = tasks
 
@@ -378,7 +405,9 @@ class MarkdownIndexService:
         skipped = 0
         for source_file in files_to_index:
             relative_path = source_file.relative_to(base_path)
-            destination = (target_root / relative_path).with_name(relative_path.name + ".md")
+            destination = (target_root / relative_path).with_name(
+                relative_path.name + ".md"
+            )
             if destination.exists():
                 if self._backfill_existing(
                     source_file=source_file,
@@ -390,7 +419,9 @@ class MarkdownIndexService:
                 ):
                     skipped += 1
                 continue
-            tasks.append(IndexingTask(source_path=source_file, destination_path=destination))
+            tasks.append(
+                IndexingTask(source_path=source_file, destination_path=destination)
+            )
 
         if skipped:
             logger.info("Skipped %d previously indexed files in %s", skipped, base_path)
@@ -408,7 +439,8 @@ class MarkdownIndexService:
     ) -> bool:
         metadata_exists = metadata_service.store.has_record(source_file)
         doc_embedding_exists = (
-            embedding_helper is None or embedding_service.store.has_variant(source_file, "document")
+            embedding_helper is None
+            or embedding_service.store.has_variant(source_file, "document")
         )
         if metadata_exists and doc_embedding_exists:
             logger.info("Skipping %s (already indexed)", source_file.name)
@@ -418,7 +450,9 @@ class MarkdownIndexService:
         try:
             markdown_text = destination.read_text(encoding="utf-8")
         except OSError as exc:  # pragma: no cover - best effort.
-            logger.warning("Unable to read existing markdown for %s: %s", source_file, exc)
+            logger.warning(
+                "Unable to read existing markdown for %s: %s", source_file, exc
+            )
             return True
 
         metadata = build_metadata_record(
@@ -437,14 +471,18 @@ class MarkdownIndexService:
         embedding_service.write_many(embeddings)
         return True
 
-    def _get_markitdown_converter(self, markitdown_converter: Any | None = None) -> Any | None:
+    def _get_markitdown_converter(
+        self, markitdown_converter: Any | None = None
+    ) -> Any | None:
         if markitdown_converter is not None:
             return markitdown_converter
         if self._markitdown_instance is None and _MarkItDownClass is not None:
             self._markitdown_instance = _MarkItDownClass()
         return self._markitdown_instance
 
-    def _get_docling_converter(self, docling_converter: Any | None = None) -> Any | None:
+    def _get_docling_converter(
+        self, docling_converter: Any | None = None
+    ) -> Any | None:
         if docling_converter is not None:
             return docling_converter
         if self._docling_instance is None and _DoclingConverterClass is not None:
@@ -457,13 +495,17 @@ class MarkdownIndexService:
         if self._summarizer_factory is None:
             try:
                 self._summarizer = MarkdownSummarizer()
-            except Exception as exc:  # pragma: no cover - fallback when Ollama fails to init.
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - fallback when Ollama fails to init.
                 logger.warning("Disabling markdown summaries: %s", exc)
                 self._summarizer = None
         else:
             try:
                 self._summarizer = self._summarizer_factory()
-            except Exception as exc:  # pragma: no cover - fallback when Ollama fails to init.
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - fallback when Ollama fails to init.
                 logger.warning("Unable to create markdown summarizer: %s", exc)
                 self._summarizer = None
         return self._summarizer
@@ -519,7 +561,9 @@ def _default_metadata_store(folder: Path) -> LanceMetadataStore:
 
 
 def _default_embedding_store(folder: Path) -> LanceEmbeddingStore:
-    return LanceEmbeddingStore(folder, doc_table_name="emb_doc", tag_table_name="emb_tags")
+    return LanceEmbeddingStore(
+        folder, doc_table_name="emb_doc", tag_table_name="emb_tags"
+    )
 
 
 def convert_to_markdown(
@@ -544,7 +588,9 @@ def convert_to_markdown(
     for converter_name in plan.ordered_converters:
         try:
             if converter_name == "markitdown":
-                markdown = convert_with_markitdown(source_path, override=markitdown_converter)
+                markdown = convert_with_markitdown(
+                    source_path, override=markitdown_converter
+                )
             else:
                 markdown = convert_with_docling(source_path, override=docling_converter)
         except Exception as exc:  # pragma: no cover - fallback scenario.
@@ -591,7 +637,9 @@ def convert_to_markdown(
         return markdown, converter_name
 
     errors.append("no markdown converter available")
-    raise RuntimeError(f"Unable to convert {source_path} to markdown ({'; '.join(errors)})")
+    raise RuntimeError(
+        f"Unable to convert {source_path} to markdown ({'; '.join(errors)})"
+    )
 
 
 def build_metadata_record(
@@ -612,7 +660,9 @@ def build_metadata_record(
         "converter": converter_name,
         "size_bytes": file_stat.st_size,
         "indexed_at": datetime.now(timezone.utc).isoformat(),
-        "modified_at": datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat(),
+        "modified_at": datetime.fromtimestamp(
+            file_stat.st_mtime, timezone.utc
+        ).isoformat(),
         "file_name": source_file.name,
         "file_extension": file_extension,
         "file_type": file_type,
@@ -631,7 +681,9 @@ def enrich_document(
 ) -> list[dict[str, Any]]:
     """Populate metadata with summaries/tags and return embedding records."""
 
-    summary = summarize_markdown(markdown_text, summarizer=summarizer, source_file=source_file)
+    summary = summarize_markdown(
+        markdown_text, summarizer=summarizer, source_file=source_file
+    )
     if summary is not None:
         metadata["description"] = summary.description
         metadata["tags"] = summary.tags
@@ -703,4 +755,3 @@ def generate_embedding_records(
     except Exception as exc:  # pragma: no cover - best effort integration.
         logger.warning("Unable to embed %s: %s", source_file, exc)
     return records
-

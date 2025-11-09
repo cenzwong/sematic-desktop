@@ -1,8 +1,8 @@
 """Integration tests for build_markdown_index Lance metadata support."""
+
 from __future__ import annotations
 
 import lancedb
-
 import pytest
 
 from sematic_desktop.middleware.summarizer import MarkdownSummary

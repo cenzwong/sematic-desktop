@@ -1,4 +1,5 @@
 """Thin wrapper utilities for interacting with the Ollama CLI."""
+
 from __future__ import annotations
 
 from typing import Sequence

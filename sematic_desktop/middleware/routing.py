@@ -1,10 +1,11 @@
 """Routing heuristics for choosing the best document converter."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import mimetypes
-from pathlib import Path
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - optional dependency at runtime.
@@ -208,4 +209,3 @@ class ConversionRouter:
         observed = 1.0 if success and error is None else 0.0
         previous = suffix_stats.get(converter_name, 0.5)
         suffix_stats[converter_name] = round((previous * 0.7) + (observed * 0.3), 3)
-
