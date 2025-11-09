@@ -1,10 +1,11 @@
 """Routing heuristics for choosing the best document converter."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import mimetypes
-from pathlib import Path
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - optional dependency at runtime.
@@ -12,7 +13,8 @@ try:  # pragma: no cover - optional dependency at runtime.
 except ImportError:  # pragma: no cover - fallback to mimetypes.
     _magic = None
 
-# File types that typically benefit from Docling's structural parser.
+__all__ = ["ConversionRouter", "FileSignals", "gather_file_signals"]
+
 _DOCLING_FORWARD_SUFFIXES: set[str] = {
     ".pdf",
     ".ppt",
@@ -28,7 +30,6 @@ _DOCLING_FORWARD_SUFFIXES: set[str] = {
     ".png",
 }
 
-# Lightweight text-first formats where MarkItDown usually shines.
 _MARKITDOWN_FIRST_SUFFIXES: set[str] = {
     ".txt",
     ".md",
@@ -154,7 +155,6 @@ class ConversionRouter:
         expected_chars = max(20, int(signals.size_bytes * self.expected_char_ratio))
         length_score = min(1.0, char_count / max(expected_chars, 1))
 
-        # Reward presence of markdown headings and tables which often indicate rich output.
         structural_bonus = 0.0
         if re.search(r"^#{1,6}\s", text, flags=re.MULTILINE):
             structural_bonus += 0.1
@@ -165,10 +165,7 @@ class ConversionRouter:
         diversity_score = min(1.0, unique_tokens / max(len(text.split()), 1))
 
         quality = (
-            0.55 * length_score
-            + 0.25 * alpha_ratio
-            + 0.10 * diversity_score
-            + structural_bonus
+            0.55 * length_score + 0.25 * alpha_ratio + 0.10 * diversity_score + structural_bonus
         )
         return float(max(0.0, min(1.0, quality)))
 
@@ -207,9 +204,5 @@ class ConversionRouter:
 
         suffix_stats = self._historical_stats.setdefault(signals.suffix, {})
         observed = 1.0 if success and error is None else 0.0
-        # Exponential moving average to keep the history bounded.
         previous = suffix_stats.get(converter_name, 0.5)
         suffix_stats[converter_name] = round((previous * 0.7) + (observed * 0.3), 3)
-
-
-__all__ = ["ConversionRouter", "FileSignals", "gather_file_signals"]

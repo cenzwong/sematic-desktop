@@ -1,12 +1,12 @@
 """Integration tests for build_markdown_index Lance metadata support."""
+
 from __future__ import annotations
 
 import lancedb
-
 import pytest
 
-from sematic_desktop.indexer import build_markdown_index
-from sematic_desktop.summarizer import MarkdownSummary
+from sematic_desktop.middleware.summarizer import MarkdownSummary
+from sematic_desktop.services.indexing import build_markdown_index
 
 
 class DummyMarkItDown:
@@ -66,10 +66,13 @@ def test_build_markdown_index_writes_lance_metadata(tmp_path) -> None:
     assert embedding_client.calls
 
     embedding_db = lancedb.connect(str(tmp_path / "metadata" / "docs"))
-    embedding_table = embedding_db.open_table("embeddings")
-    embedding_rows = embedding_table.to_arrow().to_pylist()
-    assert len(embedding_rows) == 2  # document + tags variants
-    document_row = next(row for row in embedding_rows if row["variant"] == "document")
-    tags_row = next(row for row in embedding_rows if row["variant"] == "tags")
-    assert document_row["vector"] == pytest.approx([0.1, 0.2, 0.3])
-    assert tags_row["vector"] == pytest.approx([0.1, 0.2, 0.3])
+    doc_table = embedding_db.open_table("emb_doc")
+    doc_rows = doc_table.to_arrow().to_pylist()
+    assert len(doc_rows) == 1
+    assert doc_rows[0]["vector"] == pytest.approx([0.1, 0.2, 0.3])
+
+    tag_table = embedding_db.open_table("emb_tags")
+    tag_rows = tag_table.to_arrow().to_pylist()
+    assert len(tag_rows) == 1
+    assert tag_rows[0]["tag_text"] == "tag"
+    assert tag_rows[0]["vector"] == pytest.approx([0.1, 0.2, 0.3])

@@ -1,4 +1,5 @@
 """Tests for the sematic-desktop indexing helpers."""
+
 from __future__ import annotations
 
 import pytest

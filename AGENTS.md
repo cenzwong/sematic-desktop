@@ -4,13 +4,20 @@
 Deliver a desktop utility that walks any folder tree, indexes every file regardless of type, produces embeddings plus tags for each artifact, and surfaces them through a query-friendly UI. Keep ingest, embedding, storage, and UI layers decoupled so future agents can swap models or frontends without rewriting the pipeline.
 
 ## Project Structure & Module Organization
-The repo is intentionally small: `main.py` hosts the CLI entry point, `pyproject.toml` defines project metadata, and `uv.lock` locks resolved dependencies. Create the package directory `sematic_desktop/` before adding modules so imports stay explicit. Place reusable assets such as sample data under `assets/` and keep documentation (including this file) at the top level. Mirror the runtime layout in tests (e.g., `tests/test_main.py`) to make ownership obvious.
 
-- The indexing pipeline now standardizes three artifact types inside `.semantic_index/`:
-  - Markdown intermediates (`.semantic_index/markdown/<folder>`).
-  - Metadata lance datasets (`.semantic_index/metadata/<folder>/properties.lance`).
-  - Embedding lance datasets (`.semantic_index/metadata/<folder>/embeddings.lance`).
-- Keep ingest (indexer), enrichment (summaries + embeddings), storage (Lance), and query (search facade) components loosely coupled so future agents can replace any layer independently.
+The repository follows a strict three-layer layout so every component has a single responsibility:
+
+1. **Foundation (`sematic_desktop/foundation/`)** — the only code that is allowed to touch third-party libraries. These helpers never contain business logic; they merely wrap APIs such as Ollama, Lance, MarkItDown, and Docling. Every function should do exactly one thing (e.g., “request an embedding vector” or “create a Lance table”) and return plain Python data structures.
+2. **Middleware (`sematic_desktop/middleware/` and `sematic_desktop/data/`)** — these modules compose foundation helpers into reusable building blocks (embedding clients, summarizers, routing heuristics, Lance stores). Each function/class should orchestrate a single task (e.g., “generate embeddings for text” or “upsert metadata rows”) and expose a clean interface to the service layer.
+3. **Services & Presentation (`sematic_desktop/services/` and `sematic_desktop/presentation/`)** — user-facing APIs and CLIs. Services wire middleware components into pipelines (indexing, search), while presentation modules provide CLI entry points. No service may call foundation helpers directly; everything must flow foundation → middleware/data → services → presentation.
+
+Tests in `tests/` mirror this structure (foundation logic is probed indirectly via middleware/services).
+
+### Artifact Layout
+- Markdown intermediates live under `.semantic_index/markdown/<folder>`.
+- Lance metadata lives under `.semantic_index/metadata/<folder>/properties.lance`.
+- Lance embeddings are split into `.semantic_index/metadata/<folder>/emb_doc.lance` and `.semantic_index/metadata/<folder>/emb_tags.lance`.
+Keeping ingest, enrichment, storage, and query components decoupled lets future agents swap any layer without rewriting the entire pipeline.
 
 ## Build, Test, and Development Commands
 - `uv sync` — install or update dependencies declared in `pyproject.toml` inside the managed virtual environment.
@@ -19,11 +26,13 @@ The repo is intentionally small: `main.py` hosts the CLI entry point, `pyproject
 - `uv run ruff check .` / `uv run ruff format` — lint and format the tree before committing to keep diffs minimal.
 
 ## Coding Style & Naming Conventions
-Target Python 3.13 and idiomatic PEP 8 style: 4-space indentation, `snake_case` for functions and variables, `CapWords` for classes. Keep modules single-purpose and move helper logic from `main.py` into `sematic_desktop/<feature>.py`. Type annotate public functions, favor f-strings over concatenation, and include concise docstrings for side effects. Let Ruff (once added as a dev dependency) enforce unused-import and complexity limits.
 
-- `sematic_desktop/indexer.py` owns filesystem traversal plus markdown/metadata/embedding writes.
-- `sematic_desktop/embeddings.py` encapsulates the Ollama HTTP client along with Lance table helpers—do not leak raw Lance calls elsewhere.
-- `sematic_desktop/search.py` exposes the semantic-search interface (context, tag, and question answering). Any UI or CLI should call this module rather than rebuilding embedding queries manually.
+- Target Python 3.13 / PEP 8: 4-space indentation, `snake_case` functions, `CapWords` classes.
+- **Single task per function.** If a function performs two conceptual operations, split it. Helpers should be composable and side effects should be explicit.
+- Only foundation modules may import third-party libraries such as `lancedb`, `docling`, `markitdown`, or `subprocess` (for Ollama). Middleware and services must rely on the foundation helpers instead of reusing raw APIs.
+- Services must compose middleware/data objects through dependency injection so tests can provide fakes.
+- Add concise docstrings describing the side effect or return value; prefer type annotations for public APIs.
+- Favor functional composition: pipeline stages (`ConversionStage`, `EnrichmentStage`, etc.) are single-purpose iterators that accept data and yield the transformed result.
 
 ## Testing Guidelines
 Author Pytest cases under `tests/` with filenames mirroring the source (`tests/test_<module>.py`). Each test function should describe behavior, e.g., `test_main_prints_greeting`. When logic touches I/O, isolate it behind injectable helpers so tests can substitute fakes. Aim for ≥85% coverage on new code, use deterministic fixtures, and document any slow paths with markers such as `@pytest.mark.slow`.

@@ -1,15 +1,18 @@
 """Summarization helpers that lean on Ollama-powered Gemma models."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Sequence
 
-from .ollama_client import OllamaClient
+from .ollama import OllamaClient
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["MarkdownSummary", "MarkdownSummarizer"]
 
 
 @dataclass(slots=True)
@@ -99,6 +102,3 @@ class MarkdownSummarizer:
             if cleaned and cleaned not in normalized:
                 normalized.append(cleaned)
         return normalized
-
-
-__all__ = ["MarkdownSummary", "MarkdownSummarizer"]

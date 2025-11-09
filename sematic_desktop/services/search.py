@@ -1,12 +1,16 @@
-"""Search + Q&A helpers backed by Lance metadata and embeddings."""
+"""Business logic for semantic search workflows."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from .embeddings import EmbeddingGemmaClient, LanceEmbeddingStore, LanceMetadataStore
-from .ollama_client import OllamaClient
+from sematic_desktop.data import LanceEmbeddingStore, LanceMetadataStore
+from sematic_desktop.middleware import EmbeddingGemmaClient
+from sematic_desktop.middleware.ollama import OllamaClient
+
+__all__ = ["ContextAnswerer", "SearchHit", "SemanticSearchEngine"]
 
 
 @dataclass(slots=True)
@@ -19,6 +23,7 @@ class SearchHit:
     tags: list[str]
     score: float
     variant: str
+    matched_tag: str | None = None
 
 
 class ContextAnswerer:
@@ -84,7 +89,13 @@ class SemanticSearchEngine:
 
     def search_tags(self, query: str, *, top_k: int = 5) -> list[SearchHit]:
         """Return documents ranked by semantic tag similarity."""
-        return self._search(query, variant="tags", top_k=top_k)
+        return self._search(
+            query,
+            variant="tags",
+            top_k=top_k,
+            boost_exact_tags=True,
+            oversample_factor=5,
+        )
 
     def answer_question(self, question: str, *, top_k: int = 3) -> dict[str, Any]:
         """Answer ``question`` by grounding it in the most relevant documents."""
@@ -92,7 +103,7 @@ class SemanticSearchEngine:
         if not hits:
             return {"answer": "No matching documents were found.", "hits": []}
         contexts = []
-        for hit in hits[: top_k]:
+        for hit in hits[:top_k]:
             snippet = self._read_markdown_snippet(hit.markdown_path)
             contexts.append(
                 {
@@ -103,28 +114,47 @@ class SemanticSearchEngine:
         answer = self.answerer.answer(question, contexts)
         return {"answer": answer, "hits": hits}
 
-    def _search(self, query: str, *, variant: str, top_k: int) -> list[SearchHit]:
+    def _search(
+        self,
+        query: str,
+        *,
+        variant: str,
+        top_k: int,
+        boost_exact_tags: bool = False,
+        oversample_factor: int = 1,
+    ) -> list[SearchHit]:
         query = query.strip()
         if not query:
             raise ValueError("Query must contain text.")
         vector = self.embedding_client.embed(query)
-        rows = self.embedding_store.search(vector, variant=variant, limit=top_k)
+        limit = max(top_k, top_k * max(1, oversample_factor))
+        rows = self.embedding_store.search(vector, variant=variant, limit=limit)
         source_paths = [row["source_path"] for row in rows]
         metadata_map = self.metadata_store.fetch_by_paths(source_paths)
-        hits: list[SearchHit] = []
+        hits_by_source: dict[str, SearchHit] = {}
+        normalized_query = query.lower()
         for row in rows:
             metadata = metadata_map.get(row["source_path"], {})
-            hits.append(
-                SearchHit(
-                    source_path=row["source_path"],
-                    markdown_path=row["markdown_path"],
-                    description=str(metadata.get("description", "")),
-                    tags=list(metadata.get("tags", [])),
-                    score=float(row.get("_distance", 0.0)),
-                    variant=row["variant"],
-                ),
+            distance = float(row.get("_distance", 1.0))
+            similarity = max(-1.0, min(1.0, 1.0 - distance))
+            if boost_exact_tags:
+                tags = [tag.lower() for tag in metadata.get("tags", []) if isinstance(tag, str)]
+                if normalized_query in tags:
+                    similarity = 1.0
+            hit = SearchHit(
+                source_path=row["source_path"],
+                markdown_path=row["markdown_path"],
+                description=str(metadata.get("description", "")),
+                tags=list(metadata.get("tags", [])),
+                score=similarity,
+                variant=row["variant"],
+                matched_tag=row.get("variant_label"),
             )
-        return hits
+            existing = hits_by_source.get(hit.source_path)
+            if existing is None or hit.score > existing.score:
+                hits_by_source[hit.source_path] = hit
+        hits = sorted(hits_by_source.values(), key=lambda item: item.score, reverse=True)
+        return hits[:top_k]
 
     @staticmethod
     def _read_markdown_snippet(markdown_path: str, *, max_chars: int = 2_500) -> str:
@@ -134,6 +164,3 @@ class SemanticSearchEngine:
         except OSError:
             return ""
         return text[:max_chars]
-
-
-__all__ = ["ContextAnswerer", "SearchHit", "SemanticSearchEngine"]
